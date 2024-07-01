@@ -1,9 +1,5 @@
 #include <gaussian_process>
 
-// #include <hpx/include/run_as.hpp>
-// #include <hpx/hpx_start.hpp>
-// #include <hpx/future.hpp>
-// #include <hpx/include/post.hpp>
 #include <iostream>
 
 int main(int argc, char *argv[])
@@ -41,7 +37,8 @@ int main(int argc, char *argv[])
     /////////////////////
     ///// hyperparams
     std::vector<double> M = {0.0, 0.0, 0.0};
-    gpppy_hyper::Hyperparameters hpar = {0.1, 0.9, 0.999, 1e-8, 3, M};
+    int opt_iter = 1;
+    gpppy_hyper::Hyperparameters hpar = {0.1, 0.9, 0.999, 1e-8, opt_iter, M};
     std::cout << "lr: " << hpar.learning_rate << std::endl;
     std::cout << hpar.repr() << std::endl;
 
@@ -63,7 +60,7 @@ int main(int argc, char *argv[])
 
     /////////////////////
     ///// GP
-    std::vector<bool> trainable = {false, false, true};
+    std::vector<bool> trainable = {true, true, true};
     gpppy::GP gp(training_input.data, training_output.data, n_tiles, tile_size, 1.0, 1.0, 0.1, n_reg, trainable);
     std::vector<double> training_data = gp.get_training_input();
     std::cout << "training input" << std::endl;
@@ -77,23 +74,23 @@ int main(int argc, char *argv[])
     init_loss = gp.calculate_loss();
     std::cout << "init loss: " << init_loss << std::endl;
 
-    std::size_t iter = 3;
-    for (std::size_t i; i < iter; i++)
-    {
-        std::cout << "loss:" << gp.optimize_step(hpar, i) << std::endl;
-    }
+    // std::size_t iter = 3;
+    // for (std::size_t i; i < iter; i++)
+    // {
+    //     std::cout << "loss:" << gp.optimize_step(hpar, i) << std::endl;
+    // }
 
-    // std::vector<double> losses;
-    // losses = gp.optimize(hpar);
-    // std::cout << "Loss" << std::endl;
-    // utils::print(losses, 0, 5);
+    std::vector<double> losses;
+    losses = gp.optimize(hpar);
+    std::cout << "Loss" << std::endl;
+    utils::print(losses, 0, 3);
 
-    std::vector<std::vector<double>> sum;
-    sum = gp.predict(test_input.data, result.first, result.second);
-    std::cout << "Prediction" << std::endl;
-    utils::print(sum[0], 0, 10, ", ");
-    std::cout << "Uncertainty" << std::endl;
-    utils::print(sum[1], 0, 10, ", ");
+    // std::vector<std::vector<double>> sum;
+    // sum = gp.predict(test_input.data, result.first, result.second);
+    // std::cout << "Prediction" << std::endl;
+    // utils::print(sum[0], 0, 10, ", ");
+    // std::cout << "Uncertainty" << std::endl;
+    // utils::print(sum[1], 0, 10, ", ");
 
     // Stop the HPX runtime
     utils::stop_hpx_runtime();
