@@ -7,7 +7,7 @@ set +x
 ################################################################################
 # Variables
 ################################################################################
-# export APEX_SCREEN_OUTPUT=1 
+export APEX_SCREEN_OUTPUT=1 
 #export APEX_CSV_OUTPUT=1
 export CMAKE_COMMAND=cmake
 ###
