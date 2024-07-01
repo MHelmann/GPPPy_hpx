@@ -2,28 +2,27 @@
 #include <iostream>
 #include <chrono>
 #include <fstream>
-// #include <boost/program_options.hpp>
 
 int main(int argc, char *argv[])
 {
     /////////////////////
     /////// configuration
-    int START = 100;
+    int START = 300;
     int END = 300;
-    int STEP = 100;
-    int LOOP = 10;
-    const int OPT_ITER = 3;
+    int STEP = 1000;
+    int LOOP = 1;
+    const int OPT_ITER = 1;
 
     int n_test = 700;
     const int N_CORES = 2; // Set this to the number of threads
-    const int n_tiles = 10;
+    const int n_tiles = 2;
     const int n_reg = 100;
 
     std::string train_path = "/home/maksim/simtech/thesis/GPPPy_hpx/src/data/training/training_input.txt";
     std::string out_path = "/home/maksim/simtech/thesis/GPPPy_hpx/src/data/training/training_output.txt";
     std::string test_path = "/home/maksim/simtech/thesis/GPPPy_hpx/src/data/test/test_input.txt";
 
-    for (std::size_t core = 1; core <= pow(2, N_CORES); core = core * 2)
+    for (std::size_t core = 4; core <= pow(2, N_CORES); core = core * 2)
     {
         // Create new argc and argv to include the --hpx:threads argument
         std::vector<std::string> args(argv, argv + argc);
@@ -42,7 +41,7 @@ int main(int argc, char *argv[])
         for (std::size_t start = START; start <= END; start = start + STEP)
         {
             int n_train = start;
-            for (std::size_t l = 0; l < 10; l++)
+            for (std::size_t l = 0; l < LOOP; l++)
             {
                 auto start_total = std::chrono::high_resolution_clock::now();
 
@@ -63,7 +62,7 @@ int main(int argc, char *argv[])
                 /////////////////////
                 ///// GP
                 auto start_init = std::chrono::high_resolution_clock::now();
-                std::vector<bool> trainable = {false, false, true};
+                std::vector<bool> trainable = {true, true, true};
                 gpppy::GP gp(training_input.data, training_output.data, n_tiles, tile_size, 1.0, 1.0, 0.1, n_reg, trainable);
                 auto end_init = std::chrono::high_resolution_clock::now();
                 std::chrono::duration<double> init_time = end_init - start_init;
@@ -81,6 +80,11 @@ int main(int argc, char *argv[])
                 std::vector<std::vector<double>> sum = gp.predict(test_input.data, result.first, result.second);
                 auto end_pred = std::chrono::high_resolution_clock::now();
                 std::chrono::duration<double> pred_time = end_pred - start_pred;
+
+                //std::cout << "Prediction" << std::endl;
+                //utils::print(sum[0], 0, 10, ", ");
+                //std::cout << "Uncertainty" << std::endl;
+                //utils::print(sum[1], 0, 10, ", ");
 
                 // Stop the HPX runtime
                 utils::stop_hpx_runtime();
