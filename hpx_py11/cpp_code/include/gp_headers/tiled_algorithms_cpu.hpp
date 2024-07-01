@@ -73,7 +73,7 @@ void backward_solve_tiled(std::vector<hpx::shared_future<std::vector<double>>> &
   }
 }
 
-// Tiled Triangular Solve Algorithms for Mtrices (K * X = B)
+// Tiled Triangular Solve Algorithms for matrices (K * X = B)
 void forward_solve_tiled_matrix(std::vector<hpx::shared_future<std::vector<double>>> &ft_tiles,
                                 std::vector<hpx::shared_future<std::vector<double>>> &ft_rhs,
                                 std::size_t N,
@@ -123,7 +123,7 @@ void backward_solve_tiled_matrix(std::vector<hpx::shared_future<std::vector<doub
 }
 
 //////// Triangular solve A_M,N * K_NxN = K_MxN -> A_MxN = K_MxN * K^-1_NxN
-// Tiled Triangular Solve Algorithms for Mtrices (K * X = B)
+// Tiled Triangular Solve Algorithms for Matrices (K * X = B)
 void forward_solve_KK_tiled(std::vector<hpx::shared_future<std::vector<double>>> &ft_tiles,
                             std::vector<hpx::shared_future<std::vector<double>>> &ft_rhs,
                             std::size_t N,
@@ -191,6 +191,22 @@ void compute_loss_tiled(std::vector<hpx::shared_future<std::vector<double>>> &ft
   loss = hpx::dataflow(hpx::annotated_function(hpx::unwrapping(&add_losses), "loss_tiled"), loss_tiled, N, n_tiles);
 }
 
+// Substract K⁻1 - alpha*alpha^T
+void substract_tiled(std::vector<hpx::shared_future<std::vector<double>>> &grad_I,
+                     std::vector<hpx::shared_future<std::vector<double>>> &grad_K,
+                     std::size_t N,
+                     std::size_t n_tiles)
+{
+  for (std::size_t i = 0; i < n_tiles; i++)
+  {
+    for (std::size_t j = 0; j < n_tiles; j++)
+    {
+      grad_K[i * n_tiles + j] = hpx::dataflow(hpx::annotated_function(hpx::unwrapping(&substract), "substract_tiled"),
+                                              grad_I[i * n_tiles + j], grad_K[i * n_tiles + j], N);
+    }
+  }
+}
+
 // Tiled Prediction
 void prediction_tiled(std::vector<hpx::shared_future<std::vector<double>>> &ft_tiles,
                       std::vector<hpx::shared_future<std::vector<double>>> &ft_vector,
@@ -244,13 +260,12 @@ void prediction_uncertainty_tiled(std::vector<hpx::shared_future<std::vector<dou
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Fill y*y^T*inv(K)-I Cholesky Algorithms
+// Fill I-y*y^T*inv(K) or K^-1*y*y^T*K^-1 depending on the function call from gp_functions.cpp
 void update_grad_K_tiled_mkl(std::vector<hpx::shared_future<std::vector<double>>> &ft_tiles,
                              const std::vector<hpx::shared_future<std::vector<double>>> &ft_v1,
                              const std::vector<hpx::shared_future<std::vector<double>>> &ft_v2,
                              std::size_t N,
                              std::size_t n_tiles)
-
 {
   for (std::size_t i = 0; i < n_tiles; i++)
   {
@@ -261,7 +276,7 @@ void update_grad_K_tiled_mkl(std::vector<hpx::shared_future<std::vector<double>>
   }
 }
 
-// Perform a gradient scent step for selected hyperparameter
+// Perform a gradient scent step for selected hyperparameter using Adam algorithm
 void update_hyperparameter(const std::vector<hpx::shared_future<std::vector<double>>> &ft_tiles,
                            const std::vector<hpx::shared_future<std::vector<double>>> &ft_rhs,
                            double *hyperparameters,
@@ -274,15 +289,15 @@ void update_hyperparameter(const std::vector<hpx::shared_future<std::vector<doub
                            int iter,
                            int param_idx)
 {
-  if (param_idx == 0 || param_idx == 1)
+  if (param_idx == 0 || param_idx == 1) // 0: lengthscale; 1: vertical-lengthscale
   {
+    // Placeholder for diagonal tiles
     std::vector<hpx::shared_future<std::vector<double>>> diag_tiles;
     diag_tiles.resize(n_tiles);
     for (std::size_t d = 0; d < n_tiles; d++)
     {
       diag_tiles[d] = hpx::async(hpx::annotated_function(&gen_tile_zeros_diag, "assemble_tiled"), N);
     }
-
     // Compute diagonal tiles using GEMM
     for (std::size_t i = 0; i < n_tiles; i++)
     {
@@ -292,14 +307,14 @@ void update_hyperparameter(const std::vector<hpx::shared_future<std::vector<doub
                                       ft_rhs[j * n_tiles + i], diag_tiles[i], N);
       }
     }
-    // compute trace of diag_tiles
+    // compute trace of diag_tiles = gradient
     hpx::shared_future<double> gradient = hpx::dataflow(hpx::annotated_function(hpx::unwrapping(&compute_gradient), "gradient_tiled"), diag_tiles, N, n_tiles);
     // transform hyperparameter to unconstrained form
     hpx::shared_future<double> unconstrained_param = hpx::dataflow(hpx::annotated_function(hpx::unwrapping(&to_unconstrained), "gradient_tiled"), hyperparameters[param_idx], false);
     // update moments
     m_T[param_idx] = hpx::dataflow(hpx::annotated_function(hpx::unwrapping(&update_fist_moment), "gradient_tiled"), gradient, m_T[param_idx], hyperparameters[4]);
     v_T[param_idx] = hpx::dataflow(hpx::annotated_function(hpx::unwrapping(&update_second_moment), "gradient_tiled"), gradient, v_T[param_idx], hyperparameters[5]);
-    // update parameter
+    // update unconstrained parameter
     hpx::shared_future<double> updated_param = hpx::dataflow(hpx::annotated_function(hpx::unwrapping(&update_param), "gradient_tiled"), unconstrained_param,
                                                              hyperparameters, gradient, m_T[param_idx], v_T[param_idx], beta1_T, beta2_T, iter);
     // transform hyperparameter to constrained form
@@ -312,7 +327,7 @@ void update_hyperparameter(const std::vector<hpx::shared_future<std::vector<doub
   }
 }
 
-// Update noise variance using gradient decent
+// Update noise variance using gradient decent + Adam
 void update_noise_variance(const std::vector<hpx::shared_future<std::vector<double>>> &ft_tiles,
                            double *hyperparameters,
                            std::size_t N,
@@ -323,14 +338,14 @@ void update_noise_variance(const std::vector<hpx::shared_future<std::vector<doub
                            const std::vector<hpx::shared_future<double>> &beta2_T,
                            int iter)
 {
-  // compute gradient ^= trace of diag_tiles
+  // compute gradient = trace of diag_tiles
   hpx::shared_future<double> gradient = hpx::dataflow(hpx::annotated_function(hpx::unwrapping(&compute_gradient_noise), "gradient_tiled"), ft_tiles, hyperparameters, N, n_tiles);
   // transform hyperparameter to unconstrained form
   hpx::shared_future<double> unconstrained_param = hpx::dataflow(hpx::annotated_function(hpx::unwrapping(&to_unconstrained), "gradient_tiled"), hyperparameters[2], true);
   // update moments
   m_T[2] = hpx::dataflow(hpx::annotated_function(hpx::unwrapping(&update_fist_moment), "gradient_tiled"), gradient, m_T[2], hyperparameters[4]);
   v_T[2] = hpx::dataflow(hpx::annotated_function(hpx::unwrapping(&update_second_moment), "gradient_tiled"), gradient, v_T[2], hyperparameters[5]);
-  // update parameter
+  // update unconstrained parameter
   hpx::shared_future<double> updated_param = hpx::dataflow(hpx::annotated_function(hpx::unwrapping(&update_param), "gradient_tiled"), unconstrained_param,
                                                            hyperparameters, gradient, m_T[2], v_T[2], beta1_T, beta2_T, iter);
   // transform hyperparameter to constrained form
