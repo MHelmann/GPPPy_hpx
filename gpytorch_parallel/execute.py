@@ -1,6 +1,7 @@
 import time
 import logging
 from csv import writer
+import os
 import torch
 import gpytorch
 
@@ -24,6 +25,7 @@ def gpytorch_run(config, output_csv_obj, size_train, l):
     """
     total_t = time.time()
     
+    load_t = time.time()
     X_train, Y_train, X_test, Y_test = load_data(
         train_in_path=config["train_in_file"],
         train_out_path=config["train_out_file"],
@@ -33,6 +35,8 @@ def gpytorch_run(config, output_csv_obj, size_train, l):
         size_test=config["N_TEST"],
         n_regressors=config["N_REG"],
     )
+    load_t = time.time() - load_t
+    logger.info(str(load_t))
 
     logger.info("Finished loading the data.")
 
@@ -81,28 +85,33 @@ def execute():
     logger.info("-" * 40)
     logger.info("Load config file.")
     config = get_config()
+    
+    file_exists = os.path.isfile("./output.csv")
     output_file = open("./output.csv", "a", newline="")
     output_csv_obj = writer(output_file)
     
-    logger.info("Write output file header")
-    header = ["Cores", "N_train", "N_test", "N_regressor", "Total_time",
-         "Train_time", "Optimization_Time", "Predict_time", "Error", "N_loop"]
-    output_csv_obj.writerow(header)
+    if not file_exists:
+        logger.info("Write output file header")
+        header = ["Cores", "N_train", "N_test", "N_regressor", "Total_time",
+             "Train_time", "Optimization_Time", "Predict_time", "Error", "N_loop"]
+        output_csv_obj.writerow(header)
 
     start = config["START"]
     end = config["END"]
     step = config["STEP"]
-    torch.set_num_threads(config["N_CORES"])
+    #torch.set_num_threads(config["N_CORES"])
     if config["PRECISION"] == "float32":
         torch.set_default_dtype(torch.float32)
     else:
         torch.set_default_dtype(torch.float64)
 
-    for i in range(start, end+step, step):
-        for l in range(config["LOOP"]):
-            logger.info("*" * 40)
-            logger.info(f"Train Size: {i}, Loop: {l}")
-            gpytorch_run(config, output_csv_obj, i, l)
+    for core in range(0, config["N_CORES"]):
+        torch.set_num_threads(2**core)
+        for data in range(start, end+step, step):
+            for l in range(config["LOOP"]):
+                logger.info("*" * 40)
+                logger.info(f"Train Size: {data}, Loop: {l}")
+                gpytorch_run(config, output_csv_obj, data, l)
 
     output_file.close()
     

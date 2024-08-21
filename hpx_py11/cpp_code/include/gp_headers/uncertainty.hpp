@@ -1,4 +1,6 @@
-// #include "mkl.h
+#ifndef UNCERTAINTY_H
+#define UNCERTAINTY_H
+
 #include "mkl_cblas.h"
 #include "mkl_lapacke.h"
 
@@ -163,3 +165,5 @@ std::vector<double> mkl_gemm_u_KK(std::vector<double> A,
   // return vector
   return C;
 }
+
+#endif
