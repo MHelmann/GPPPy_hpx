@@ -16,7 +16,7 @@ namespace gpppy
         data = utils::load_data(f_path, n);
     }
 
-    // Initialize of the Gaussian process constructor
+    // Initialize Gaussian process constructor
     GP::GP(std::vector<double> input, std::vector<double> output, int n_tiles, int n_tile_size, double l, double v, double n, int n_r, std::vector<bool> trainable_bool)
     {
         _training_input = input;

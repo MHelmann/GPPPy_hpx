@@ -118,14 +118,14 @@ std::vector<double> mkl_gemv_u(std::vector<double> A,
   return b;
 }
 
-// A = y*beta^T + A
+// A = alpha*alpha^T + A
 std::vector<double> mkl_ger(std::vector<double> A,
                             std::vector<double> x,
                             std::vector<double> y,
                             std::size_t N)
 {
   // GER constants
-  const double alpha = -1.0;
+  const double alpha = 1.0;
   // GER kernel
   cblas_dger(CblasRowMajor, N, N, alpha, x.data(), 1, y.data(), 1, A.data(), N);
   // return A

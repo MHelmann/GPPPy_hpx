@@ -38,6 +38,7 @@ hpx::shared_future<std::vector<std::vector<double>>> predict_with_uncertainty_hp
                                                                                   int m_tiles, int m_tile_size, double lengthscale, double vertical_lengthscale,
                                                                                   double noise_variance, int n_regressors);
 
+
 // Compute loss for given data and Gaussian process model
 hpx::shared_future<double> compute_loss_hpx(const std::vector<double> &training_input, const std::vector<double> &training_output,
                                             int n_tiles, int n_tile_size, int n_regressors, double *hyperparameters);

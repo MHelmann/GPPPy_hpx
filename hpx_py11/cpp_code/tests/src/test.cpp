@@ -37,7 +37,8 @@ int main(int argc, char *argv[])
     /////////////////////
     ///// hyperparams
     std::vector<double> M = {0.0, 0.0, 0.0};
-    gpppy_hyper::Hyperparameters hpar = {0.1, 0.9, 0.999, 1e-8, 0, M};
+    int opt_iter = 0;
+    gpppy_hyper::Hyperparameters hpar = {0.1, 0.9, 0.999, 1e-8, opt_iter, M};
     std::cout << "lr: " << hpar.learning_rate << std::endl;
     std::cout << hpar.repr() << std::endl;
 
