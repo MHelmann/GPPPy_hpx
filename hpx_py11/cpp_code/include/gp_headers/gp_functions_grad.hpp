@@ -1,6 +1,7 @@
 #ifndef GP_FUNCTIONS_GRAD_H_INCLUDED
 #define GP_FUNCTIONS_GRAD_H_INCLUDED
 
+#include "mkl_cblas.h"
 #include <cmath>
 #include <vector>
 #include <numeric>
@@ -23,7 +24,7 @@ double to_constrained(const double &parameter,
 }
 
 // transform hyperparmeter to entire real line using inverse
-// of sofplus. Optimizer, such as gradient decent or Adam,
+// of sofplus. Optimizers, such as gradient decent or Adam,
 // work better with unconstrained parameters
 double to_unconstrained(const double &parameter,
                         bool noise)
@@ -227,10 +228,11 @@ double compute_loss(const std::vector<double> &K_diag_tile,
                     std::size_t N)
 {
   double l = 0.0;
+  l += cblas_ddot(N, y_tile.data(), 1, alpha_tile.data(), 1);
   for (std::size_t i = 0; i < N; i++)
   {
     // Add the squared difference to the error
-    l += log(K_diag_tile[i * N + i] * K_diag_tile[i * N + i]) + y_tile[i] * alpha_tile[i];
+    l += log(K_diag_tile[i * N + i] * K_diag_tile[i * N + i]);
   }
   return l;
 }
@@ -251,22 +253,15 @@ double add_losses(const std::vector<double> &losses,
 }
 
 // compute trace of (K^-1 - K^-1*y*y^T*K^-1)* del(K)/del(hyperparam) = gradient(K) w.r.t. hyperparam
-double compute_gradient(const std::vector<std::vector<double>> &diag_tiles,
+double compute_gradient(const double &grad_l,
+                        const double &grad_r,
                         std::size_t N,
                         std::size_t n_tiles)
 {
-  // Initialize tile
-  double trace = 0.0;
-  for (std::size_t d = 0; d < n_tiles; d++)
-  {
-    auto tile = diag_tiles[d];
-    for (std::size_t i = 0; i < N; ++i)
-    {
-      trace += tile[i * N + i];
-    }
-  }
-  trace = 1.0 / (2.0 * N * n_tiles) * trace;
-  return std::move(trace);
+  double grad = 0.0;
+  grad = 1.0 / (2.0 * N * n_tiles) * (grad_l - grad_r);
+
+  return std::move(grad);
 }
 
 // compute trace for noise variance
@@ -358,7 +353,7 @@ std::vector<double> gen_tile_zeros_diag(std::size_t N)
 {
   // Initialize tile
   std::vector<double> tile;
-  tile.resize(N * N);
+  tile.resize(N);
   std::fill(tile.begin(), tile.end(), 0.0);
   return std::move(tile);
 }
@@ -370,18 +365,45 @@ double gen_zero()
   return z;
 }
 
-// Substract vectors elementwise
-std::vector<double> substract(const std::vector<double> &vec1,
-                              const std::vector<double> &vec2,
-                              std::size_t N)
+double sum_gradleft(const std::vector<double> &diagonal,
+                    double grad)
 {
-  std::vector<double> result(N * N);
-  // Elementwise subtraction
-  for (size_t i = 0; i < N * N; ++i)
+  grad += std::reduce(diagonal.begin(), diagonal.end());
+  return grad;
+}
+
+double sum_gradright(const std::vector<double> &inter_alpha,
+                     const std::vector<double> &alpha,
+                     double grad,
+                     std::size_t N)
+{
+  grad += cblas_ddot(N, inter_alpha.data(), 1, alpha.data(), 1);
+  return grad;
+}
+
+double sum_noise_gradleft(const std::vector<double> &ft_invK,
+                          double grad,
+                          double *hyperparameters,
+                          std::size_t N,
+                          std::size_t n_tiles)
+{
+  double noise_der = compute_sigmoid(to_unconstrained(hyperparameters[2], true));
+  for (std::size_t i = 0; i < N; ++i)
   {
-    result[i] = vec1[i] - vec2[i];
+    // printf("grad_left i : %.2ld\n", i);
+    grad += (ft_invK[i * N + i] * noise_der);
   }
-  return std::move(result);
+  return std::move(grad);
+}
+
+double sum_noise_gradright(const std::vector<double> &alpha,
+                           double grad,
+                           double *hyperparameters,
+                           std::size_t N)
+{
+  double noise_der = compute_sigmoid(to_unconstrained(hyperparameters[2], true));
+  grad += (noise_der * cblas_ddot(N, alpha.data(), 1, alpha.data(), 1));
+  return grad;
 }
 
 #endif

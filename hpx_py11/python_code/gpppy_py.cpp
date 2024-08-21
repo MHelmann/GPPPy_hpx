@@ -34,8 +34,10 @@ void init_gpppy(py::module &m)
 
     py::class_<gpppy::GP>(m, "GP")
         .def(py::init<std::vector<double>, std::vector<double>, int, int, double, double, double, int, std::vector<bool>>(),
-             py::arg("input_data"), py::arg("output_data"),
-             py::arg("n_tiles"), py::arg("n_tile_size"),
+             py::arg("input_data"), 
+             py::arg("output_data"),
+             py::arg("n_tiles"), 
+             py::arg("n_tile_size"),
              py::arg("lengthscale") = 1.0,
              py::arg("v_lengthscale") = 1.0,
              py::arg("noise_var") = 0.1,
@@ -49,6 +51,7 @@ void init_gpppy(py::module &m)
         .def("get_input_data", &gpppy::GP::get_training_input)
         .def("get_output_data", &gpppy::GP::get_training_output)
         .def("predict", &gpppy::GP::predict, py::arg("test_data"), py::arg("m_tiles"), py::arg("m_tile_size"))
+        .def("predict_with_uncertainty", &gpppy::GP::predict_with_uncertainty, py::arg("test_data"), py::arg("m_tiles"), py::arg("m_tile_size"))
         .def("optimize", &gpppy::GP::optimize, py::arg("hyperparams"))
         .def("optimize_step", &gpppy::GP::optimize_step, py::arg("hyperparams"), py::arg("iter"))
         .def("compute_loss", &gpppy::GP::calculate_loss);

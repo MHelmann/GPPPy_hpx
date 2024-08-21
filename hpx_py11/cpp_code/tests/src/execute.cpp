@@ -9,7 +9,7 @@ int main(int argc, char *argv[])
     /////// configuration
     int START = 300;
     int END = 300;
-    int STEP = 1000;
+    int STEP = 100;
     int LOOP = 1;
     const int OPT_ITER = 1;
 
@@ -77,7 +77,7 @@ int main(int argc, char *argv[])
                 std::chrono::duration<double> opt_time = end_opt - start_opt;
 
                 auto start_pred = std::chrono::high_resolution_clock::now();
-                std::vector<std::vector<double>> sum = gp.predict(test_input.data, result.first, result.second);
+                std::vector<std::vector<double>> sum = gp.predict_with_uncertainty(test_input.data, result.first, result.second);
                 auto end_pred = std::chrono::high_resolution_clock::now();
                 std::chrono::duration<double> pred_time = end_pred - start_pred;
 
