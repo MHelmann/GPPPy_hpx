@@ -2,7 +2,6 @@
 #include <iostream>
 #include <chrono>
 #include <fstream>
-// #include <boost/program_options.hpp>
 
 int main(int argc, char *argv[])
 {
@@ -66,7 +65,7 @@ int main(int argc, char *argv[])
                 /////////////////////
                 ///// GP
                 auto start_init = std::chrono::high_resolution_clock::now();
-                std::vector<bool> trainable = {false, false, true};
+                std::vector<bool> trainable = {true, true, true};
                 gpppy::GP gp(training_input.data, training_output.data, n_tiles, tile_size, 1.0, 1.0, 0.1, n_reg, trainable);
                 auto end_init = std::chrono::high_resolution_clock::now();
                 std::chrono::duration<double> init_time = end_init - start_init;
@@ -100,6 +99,11 @@ int main(int argc, char *argv[])
                 std::vector<double> pred = gp.predict(test_input.data, result.first, result.second);
                 auto end_pred = std::chrono::high_resolution_clock::now();
                 std::chrono::duration<double> pred_time = end_pred - start_pred;
+
+                //std::cout << "Prediction" << std::endl;
+                //utils::print(sum[0], 0, 10, ", ");
+                //std::cout << "Uncertainty" << std::endl;
+                //utils::print(sum[1], 0, 10, ", ");
 
                 // Stop the HPX runtime
                 utils::stop_hpx_runtime();

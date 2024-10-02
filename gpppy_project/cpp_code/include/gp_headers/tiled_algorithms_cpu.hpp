@@ -206,6 +206,22 @@ void compute_loss_tiled(std::vector<hpx::shared_future<std::vector<double>>> &ft
   loss = hpx::dataflow(hpx::annotated_function(hpx::unwrapping(&add_losses), "loss_tiled"), loss_tiled, N, n_tiles);
 }
 
+// Substract K⁻1 - alpha*alpha^T
+void substract_tiled(std::vector<hpx::shared_future<std::vector<double>>> &grad_I,
+                     std::vector<hpx::shared_future<std::vector<double>>> &grad_K,
+                     std::size_t N,
+                     std::size_t n_tiles)
+{
+  for (std::size_t i = 0; i < n_tiles; i++)
+  {
+    for (std::size_t j = 0; j < n_tiles; j++)
+    {
+      grad_K[i * n_tiles + j] = hpx::dataflow(hpx::annotated_function(hpx::unwrapping(&substract), "substract_tiled"),
+                                              grad_I[i * n_tiles + j], grad_K[i * n_tiles + j], N);
+    }
+  }
+}
+
 // Tiled Prediction
 void prediction_tiled(std::vector<hpx::shared_future<std::vector<double>>> &ft_tiles,
                       std::vector<hpx::shared_future<std::vector<double>>> &ft_vector,
@@ -297,7 +313,6 @@ void update_grad_K_tiled_mkl(std::vector<hpx::shared_future<std::vector<double>>
                              const std::vector<hpx::shared_future<std::vector<double>>> &ft_v2,
                              std::size_t N,
                              std::size_t n_tiles)
-
 {
   for (std::size_t i = 0; i < n_tiles; i++)
   {
@@ -326,6 +341,7 @@ void update_hyperparameter(const std::vector<hpx::shared_future<std::vector<doub
   /// part 1: trace(inv(K)*grad_param)
   if (param_idx == 0 || param_idx == 1) // 0: lengthscale; 1: vertical-lengthscale
   {
+    // Placeholder for diagonal tiles
     std::vector<hpx::shared_future<std::vector<double>>> diag_tiles;
     diag_tiles.resize(n_tiles);
     for (std::size_t d = 0; d < n_tiles; d++)
@@ -380,7 +396,6 @@ void update_hyperparameter(const std::vector<hpx::shared_future<std::vector<doub
 
     // compute gradient = grad_left + grad_r
     hpx::shared_future<double> gradient = hpx::dataflow(hpx::annotated_function(hpx::unwrapping(&compute_gradient), "gradient_tiled"), grad_left, grad_right, N, n_tiles);
-
     // transform hyperparameter to unconstrained form
     hpx::shared_future<double> unconstrained_param = hpx::dataflow(hpx::annotated_function(hpx::unwrapping(&to_unconstrained), "gradient_tiled"), hyperparameters[param_idx], false);
     // update moments

@@ -1,5 +1,7 @@
 import time
 import logging
+
+from csv import writer
 import torch
 import gpytorch
 import os
@@ -23,6 +25,7 @@ def gpytorch_run(config, output_file, size_train, l, cores):
         l (int): Loop index.
     """
     total_t = time.time()
+
     X_train, Y_train, X_test, Y_test = load_data(
         train_in_path=config["train_in_file"],
         train_out_path=config["train_out_file"],
@@ -114,7 +117,6 @@ def execute():
                     logger.info("*" * 40)
                     logger.info(f"Train Size: {data}, Loop: {l}")
                     gpytorch_run(config, output_file, data, l, 2**core)
-
     
     logger.info("Completed the program.")
 

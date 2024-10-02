@@ -99,4 +99,5 @@ void init_utils(py::module &m)
     m.def("resume_hpx", &utils::resume_hpx_runtime);
     m.def("suspend_hpx", &utils::suspend_hpx_runtime);
     m.def("stop_hpx", &utils::stop_hpx_runtime);
+
 }

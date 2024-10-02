@@ -136,7 +136,7 @@ hpx::shared_future<std::vector<std::vector<double>>> predict_with_uncertainty_hp
     {
         for (std::size_t j = 0; j <= i; j++)
         {
-            K_tiles[i * n_tiles + j] = hpx::async(hpx::annotated_function(&gen_tile_covariance, "assemble_tiled"), i, j,
+            K_tiles[i * n_tiles + j] = hpx::async(hpx::annotated_function(&gen_tile_covariance, "assemble_pred"), i, j,
                                                   n_tile_size, n_regressors, hyperparameters, training_input);
         }
     }
@@ -144,7 +144,7 @@ hpx::shared_future<std::vector<std::vector<double>>> predict_with_uncertainty_hp
     alpha_tiles.resize(n_tiles);
     for (std::size_t i = 0; i < n_tiles; i++)
     {
-        alpha_tiles[i] = hpx::async(hpx::annotated_function(&gen_tile_output, "assemble_tiled"), i, n_tile_size, training_output);
+        alpha_tiles[i] = hpx::async(hpx::annotated_function(&gen_tile_output, "assemble_pred"), i, n_tile_size, training_output);
     }
     // Assemble prior covariance matrix vector
     prior_K_tiles.resize(m_tiles);
@@ -153,7 +153,7 @@ hpx::shared_future<std::vector<std::vector<double>>> predict_with_uncertainty_hp
         prior_K_tiles[i] = hpx::async(hpx::annotated_function(&gen_tile_prior_covariance, "assemble_tiled"), i, i,
                                       m_tile_size, n_regressors, hyperparameters, test_input);
     }
-    // Assemble MxN cross-covariance matrix vector
+    // Assemble MxN cross-covariance matrix vector and NxM (transpose) cross-covariance matrix vector
     cross_covariance_tiles.resize(m_tiles * n_tiles);
     // Assemble NxM (transpose) cross-covariance matrix vector
     t_cross_covariance_tiles.resize(n_tiles * m_tiles);
@@ -178,19 +178,18 @@ hpx::shared_future<std::vector<std::vector<double>>> predict_with_uncertainty_hp
     prediction_tiles.resize(m_tiles);
     for (std::size_t i = 0; i < m_tiles; i++)
     {
-        prediction_tiles[i] = hpx::async(hpx::annotated_function(&gen_tile_zeros, "assemble_tiled"), m_tile_size);
+        prediction_tiles[i] = hpx::async(hpx::annotated_function(&gen_tile_zeros, "assemble_pred"), m_tile_size);
     }
     // Assemble placeholder for uncertainty
     prediction_uncertainty_tiles.resize(m_tiles);
     for (std::size_t i = 0; i < m_tiles; i++)
     {
-        prediction_uncertainty_tiles[i] = hpx::async(hpx::annotated_function(&gen_tile_zeros, "assemble_tiled"), m_tile_size);
+        prediction_uncertainty_tiles[i] = hpx::async(hpx::annotated_function(&gen_tile_zeros, "assemble_pred"), m_tile_size);
     }
 
     //////////////////////////////////////////////////////////////////////////////
     //// Compute Cholesky decomposition
     right_looking_cholesky_tiled_mkl(K_tiles, n_tile_size, n_tiles);
-    //// Triangular solve K_NxN * alpha = y
     forward_solve_tiled(K_tiles, alpha_tiles, n_tile_size, n_tiles);
     backward_solve_tiled(K_tiles, alpha_tiles, n_tile_size, n_tiles);
 
@@ -364,7 +363,7 @@ hpx::shared_future<double> compute_loss_hpx(const std::vector<double> &training_
     {
         for (std::size_t j = 0; j <= i; j++)
         {
-            K_tiles[i * n_tiles + j] = hpx::async(hpx::annotated_function(&gen_tile_covariance, "assemble_tiled"), i, j,
+            K_tiles[i * n_tiles + j] = hpx::async(hpx::annotated_function(&gen_tile_covariance, "assemble_loss"), i, j,
                                                   n_tile_size, n_regressors, hyperparameters, training_input);
         }
     }
@@ -372,13 +371,13 @@ hpx::shared_future<double> compute_loss_hpx(const std::vector<double> &training_
     alpha_tiles.resize(n_tiles);
     for (std::size_t i = 0; i < n_tiles; i++)
     {
-        alpha_tiles[i] = hpx::async(hpx::annotated_function(&gen_tile_output, "assemble_tiled"), i, n_tile_size, training_output);
+        alpha_tiles[i] = hpx::async(hpx::annotated_function(&gen_tile_output, "assemble_loss"), i, n_tile_size, training_output);
     }
     // Assemble y
     y_tiles.resize(n_tiles);
     for (std::size_t i = 0; i < n_tiles; i++)
     {
-        y_tiles[i] = hpx::async(hpx::annotated_function(&gen_tile_output, "assemble_tiled"), i, n_tile_size, training_output);
+        y_tiles[i] = hpx::async(hpx::annotated_function(&gen_tile_output, "assemble_loss"), i, n_tile_size, training_output);
     }
 
     //////////////////////////////////////////////////////////////////////////////
@@ -561,6 +560,7 @@ hpx::shared_future<std::vector<double>> optimize_hpx(const std::vector<double> &
                       { return losses; });
 }
 
+
 // Perform a single optimization step
 hpx::shared_future<double> optimize_step_hpx(const std::vector<double> &training_input, const std::vector<double> &training_output,
                                              int n_tiles, int n_tile_size, double &lengthscale, double &vertical_lengthscale,
@@ -635,7 +635,7 @@ hpx::shared_future<double> optimize_step_hpx(const std::vector<double> &training
                                                        n_tile_size, n_regressors, hyperparameters, training_input);
         }
     }
-    // Assemble matrix that will be multiplied with derivates
+    // Assemble placeholder matrix that will be filled with values from K^-1*(I-y*y^T*K^-1)
     grad_K_tiles.resize(n_tiles * n_tiles);
     for (std::size_t i = 0; i < n_tiles; i++)
     {
@@ -665,6 +665,7 @@ hpx::shared_future<double> optimize_step_hpx(const std::vector<double> &training
             grad_I_tiles[i * n_tiles + j] = hpx::async(hpx::annotated_function(&gen_tile_identity, "assemble_identity_matrix"), i, j, n_tile_size);
         }
     }
+
     //////////////////////////////////////////////////////////////////////////////
     // Cholesky decomposition
     right_looking_cholesky_tiled_mkl(K_tiles, n_tile_size, n_tiles);
